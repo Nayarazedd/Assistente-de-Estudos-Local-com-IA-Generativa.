@@ -46,7 +46,15 @@ Redação:
             )
             return response.text
         except Exception as e:
-            return f"Erro ao processar com a API do Google: {e}"
+            try:
+                # Tentativa de fallback com outro nome de modelo caso o 1.5-flash recuse
+                response = client.models.generate_content(
+                    model="gemini-1.5-pro",
+                    contents=prompt,
+                )
+                return response.text
+            except Exception as e2:
+                return f"Erro ao processar com a API do Google: {e2}"
 
     try:
         resposta = requests.post(
