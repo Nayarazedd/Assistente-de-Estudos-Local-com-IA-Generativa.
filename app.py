@@ -9,7 +9,6 @@ import json
 
 st.set_page_config(page_title="Minha IA de Estudos", page_icon="📚", layout="centered")
 
-# Estilo visual básico (botões arredondados)
 st.markdown("""
 <style>
 .stButton button {
@@ -30,7 +29,6 @@ if "historico_chat" not in st.session_state:
 MATERIAS = ["Matemática", "Redação", "História", "Direito Constitucional"]
 
 def consultar_ia(prompt_final):
-    """Função unificada: usa a API do Google na nuvem ou o Ollama local."""
     api_key = None
     try:
         if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
@@ -53,7 +51,6 @@ def consultar_ia(prompt_final):
         except Exception as e:
             return f"Erro ao processar com a API do Google: {e}"
 
-    # Fallback para o Ollama local
     try:
         resposta_bruta = requests.post(
             "http://localhost:11434/api/generate",
@@ -62,9 +59,8 @@ def consultar_ia(prompt_final):
         )
         return resposta_bruta.json()["response"]
     except Exception as e:
-        return f"Erro de conexão: Nenhuma chave de API configurada e o Ollama local não está rodando. Detalhe: {e}"
+        return f"Erro de conexão local: {e}"
 
-# --- TELA INICIAL: botões tipo Duolingo ---
 def tela_inicio():
     st.title("📚 Minha IA de Estudos")
     st.write("Escolha uma matéria pra começar:")
@@ -88,7 +84,6 @@ def tela_inicio():
         st.session_state.pagina = "redacao"
         st.rerun()
 
-# --- TELA DE CHAT POR MATÉRIA ---
 def tela_chat():
     materia = st.session_state.materia_atual
     st.title(f"💬 {materia.replace('_', ' ').title()}")
@@ -104,9 +99,16 @@ def tela_chat():
     if pergunta:
         st.session_state.historico_chat[materia].append({"autor": "user", "texto": pergunta})
         resultados = buscar(materia, pergunta)
-        contexto = "\n\n".join([p.page_content for p in resultados]) if resultados else "Sem material salvo ainda."
+        contexto = "\n\n".join([p.page_content for p in resultados]) if resultados else "Nenhum documento específico cadastrado para esta matéria ainda."
         
-        prompt_final = f"Você é um professor direto e claro. Responda a pergunta do aluno usando APENAS este contexto:\n\n{contexto}\n\nPergunta: {pergunta}"
+        # Prompt mais flexível caso o contexto esteja vazio
+        prompt_final = f"""Você é um professor direto, claro e prestativo. 
+Use o contexto abaixo se ele for útil. Caso o contexto esteja vazio ou não tenha a resposta, responda usando seu conhecimento geral sobre o assunto para ajudar o aluno da melhor forma.
+
+Contexto dos materiais:
+{contexto}
+
+Pergunta do aluno: {pergunta}"""
         
         resposta = consultar_ia(prompt_final)
         
@@ -117,41 +119,48 @@ def tela_chat():
         st.session_state.pagina = "inicio"
         st.rerun()
 
-# --- TELA DE POMODORO ---
 def tela_pomodoro():
-    st.title("⏱️ Pomodoro")
+    st.title("⏱️ Pomodoro de Estudos")
 
     if "pomodoro_rodando" not in st.session_state:
         st.session_state.pomodoro_rodando = False
         st.session_state.pomodoro_fim = None
 
-    minutos = st.slider("Minutos de foco", 5, 60, 25)
+    minutos = st.slider("Minutos de foco", 1, 60, 25)
 
-    if not st.session_state.pomodoro_rodando:
-        if st.button("Começar"):
-            st.session_state.pomodoro_fim = time.time() + minutos * 60
-            st.session_state.pomodoro_rodando = True
-            st.rerun()
-    else:
-        # Atualiza a tela a cada 1 segundo automaticamente para o cronômetro rodar na vista
-        st_autorefresh(interval=1000, key="refresh_pomodoro")
+    # Espaço dedicado para o visor do cronômetro não sumir
+    visor_tempo = st.empty()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        btn_comecar = st.button("Começar Foco")
+    with col2:
+        btn_parar = st.button("Parar / Resetar")
+
+    if btn_comecar:
+        st.session_state.pomodoro_fim = time.time() + (minutos * 60)
+        st.session_state.pomodoro_rodando = True
+
+    if btn_parar:
+        st.session_state.pomodoro_rodando = False
+        st.session_state.pomodoro_fim = None
+
+    if st.session_state.pomodoro_rodando and st.session_state.pomodoro_fim:
+        st_autorefresh(interval=1000, key="relogio_pomodoro")
         restante = int(st.session_state.pomodoro_fim - time.time())
-        
+
         if restante <= 0:
-            st.success("🎉 Tempo esgotado! Hora da pausa de descanso!")
+            visor_tempo.success("🎉 Tempo esgotado! Hora da pausa de descanso!")
             st.session_state.pomodoro_rodando = False
         else:
             mins, segs = divmod(restante, 60)
-            st.metric("Tempo restante", f"{mins:02d}:{segs:02d}")
-            if st.button("Parar"):
-                st.session_state.pomodoro_rodando = False
-                st.rerun()
+            visor_tempo.metric("Tempo Restante", f"{mins:02d}:{segs:02d}")
 
+    st.write("")
     if st.button("⬅️ Voltar"):
         st.session_state.pagina = "inicio"
         st.rerun()
 
-# --- TELA DE REDAÇÃO ---
 def tela_redacao():
     st.title("✍️ Corrigir Redação")
     texto = st.text_area("Cole sua redação aqui", height=250)
@@ -167,13 +176,12 @@ def tela_redacao():
             st.subheader("Comparação com a redação anterior")
             st.write(comparacao)
         else:
-            st.warning("Cole um texto de redação válido antes de enviar.")
+            st.warning("Cole um texto válido.")
 
     if st.button("⬅️ Voltar"):
         st.session_state.pagina = "inicio"
         st.rerun()
 
-# --- TELA DE LINHA DO TEMPO ---
 def tela_timeline():
     st.title("📈 Sua Linha do Tempo")
 
@@ -190,7 +198,6 @@ def tela_timeline():
         st.session_state.pagina = "inicio"
         st.rerun()
 
-# --- ROTEADOR ---
 if st.session_state.pagina == "inicio":
     tela_inicio()
 elif st.session_state.pagina == "chat":
