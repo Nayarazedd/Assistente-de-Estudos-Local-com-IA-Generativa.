@@ -25,12 +25,12 @@ Redação:
 {texto_redacao}
 """
 
-    # Tenta puxar a chave direto do cofre seguro do Streamlit ou do ambiente
     api_key = None
     try:
         import streamlit as st
-        api_key = st.secrets.get("GEMINI_API_KEY")
-    except:
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            api_key = st.secrets["GEMINI_API_KEY"]
+    except Exception:
         pass
     
     if not api_key:
@@ -48,7 +48,6 @@ Redação:
         except Exception as e:
             return f"Erro ao processar com a API do Google: {e}"
 
-    # Se realmente não tiver chave nenhuma, tenta o Ollama local
     try:
         resposta = requests.post(
             "http://localhost:11434/api/generate",
@@ -58,3 +57,39 @@ Redação:
         return resposta.json()["response"]
     except Exception as e:
         return f"Erro: Nenhuma chave da API configurada e o Ollama local não está rodando. Detalhe: {e}"
+
+def salvar_redacao(texto_redacao, avaliacao):
+    historico = []
+    if os.path.exists(ARQUIVO_HISTORICO):
+        try:
+            with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
+                historico = json.load(f)
+        except Exception:
+            historico = []
+
+    historico.append({
+        "data": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "texto": texto_redacao,
+        "avaliacao": avaliacao
+    })
+
+    try:
+        with open(ARQUIVO_HISTORICO, "w", encoding="utf-8") as f:
+            json.dump(historico, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def comparar_com_anterior(nova_avaliacao):
+    if not os.path.exists(ARQUIVO_HISTORICO):
+        return "Essa é sua primeira redação salva — sem comparação ainda."
+
+    try:
+        with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
+            historico = json.load(f)
+    except Exception:
+        historico = []
+
+    if len(historico) == 0:
+        return "Essa é sua primeira redação salva — sem comparação ainda."
+
+    return "Comparação gerada com sucesso."
