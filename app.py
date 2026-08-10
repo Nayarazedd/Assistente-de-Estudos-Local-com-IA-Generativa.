@@ -129,33 +129,30 @@ if "pomodoro_rodando" not in st.session_state:
 def tela_pomodoro():
     st.title("⏱️ Pomodoro de Estudos")
     
-    # Criamos um container fixo para o cronômetro
-    visor = st.empty()
+    if "pomodoro_fim" not in st.session_state:
+        st.session_state.pomodoro_fim = None
 
-    if not st.session_state.pomodoro_rodando:
-        minutos = st.slider("Minutos de foco:", 1, 60, 25)
-        if st.button("🚀 Começar Ciclo de Foco"):
-            st.session_state.pomodoro_fim = time.time() + (minutos * 60)
-            st.session_state.pomodoro_rodando = True
-            st.rerun()
-    else:
-        # Forçamos o refresh para o tempo andar
-        st_autorefresh(interval=1000, key="relogio_fixo")
-        
-        restante = int(st.session_state.pomodoro_fim - time.time())
-        
-        if restante <= 0:
-            st.session_state.pomodoro_rodando = False
-            st.balloons() # Efeito de festa visual
-            st.success("🎉 Tempo esgotado! Hora da pausa!")
-            st.rerun()
+    minutos = st.number_input("Minutos de foco:", min_value=1, max_value=60, value=25)
+    
+    if st.button("🚀 Começar Ciclo"):
+        st.session_state.pomodoro_fim = time.time() + (minutos * 60)
+        st.rerun()
+
+    if st.button("❌ Parar"):
+        st.session_state.pomodoro_fim = None
+        st.rerun()
+
+    if st.session_state.pomodoro_fim:
+        restante = st.session_state.pomodoro_fim - time.time()
+        if restante > 0:
+            mins, segs = divmod(int(restante), 60)
+            st.metric("Tempo Restante", f"{mins:02d}:{segs:02d}")
+            # O st_autorefresh aqui força a página a atualizar o relógio a cada 1 segundo
+            st_autorefresh(interval=1000, key="datarefresh")
         else:
-            mins, segs = divmod(restante, 60)
-            visor.metric("Tempo Restante", f"{mins:02d}:{segs:02d}")
-            
-            if st.button("Parar Ciclo"):
-                st.session_state.pomodoro_rodando = False
-                st.rerun()
+            st.success("🎉 Tempo esgotado! Hora da pausa!")
+            st.session_state.pomodoro_fim = None
+            st.rerun()
 
     if st.button("⬅️ Voltar"):
         st.session_state.pagina = "inicio"
