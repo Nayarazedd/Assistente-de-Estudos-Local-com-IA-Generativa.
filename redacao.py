@@ -25,9 +25,17 @@ Redação:
 {texto_redacao}
 """
 
-    # Tenta usar a API do Google se a chave estiver configurada (Streamlit Cloud)
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    # Tenta puxar a chave direto do cofre seguro do Streamlit ou do ambiente
+    api_key = None
+    try:
+        import streamlit as st
+        api_key = st.secrets.get("GEMINI_API_KEY")
+    except:
+        pass
     
+    if not api_key:
+        api_key = os.getenv("GEMINI_API_KEY")
+
     if api_key:
         try:
             from google import genai
@@ -38,9 +46,9 @@ Redação:
             )
             return response.text
         except Exception as e:
-            print(f"Erro ao usar API do Google: {e}")
+            return f"Erro ao processar com a API do Google: {e}"
 
-    # Se não tiver chave ou falhar, tenta o Ollama local
+    # Se realmente não tiver chave nenhuma, tenta o Ollama local
     try:
         resposta = requests.post(
             "http://localhost:11434/api/generate",
@@ -49,32 +57,4 @@ Redação:
         )
         return resposta.json()["response"]
     except Exception as e:
-        return f"Erro de conexão com a IA (Local ou Nuvem): {e}"
-
-def salvar_redacao(texto_redacao, avaliacao):
-    historico = []
-    if os.path.exists(ARQUIVO_HISTORICO):
-        with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
-            historico = json.load(f)
-
-    historico.append({
-        "data": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "texto": texto_redacao,
-        "avaliacao": avaliacao
-    })
-
-    with open(ARQUIVO_HISTORICO, "w", encoding="utf-8") as f:
-        json.dump(historico, f, ensure_ascii=False, indent=2)
-
-def comparar_com_anterior(nova_avaliacao):
-    if not os.path.exists(ARQUIVO_HISTORICO):
-        return "Essa é sua primeira redação salva — sem comparação ainda."
-
-    with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
-        historico = json.load(f)
-
-    if len(historico) == 0:
-        return "Essa é sua primeira redação salva — sem comparação ainda."
-
-    anterior = historico[-1]["avaliacao"]
-    return "Comparação gerada com sucesso."
+        return f"Erro: Nenhuma chave da API configurada e o Ollama local não está rodando. Detalhe: {e}"
