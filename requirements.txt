@@ -1,0 +1,11 @@
+Requests
+langchain
+langchain-community
+langchain-text-splitters
+chromadb
+pypdf
+duckduckgo-search
+beautifulsoup4
+streamlit
+streamlit-autorefresh
+google-genai

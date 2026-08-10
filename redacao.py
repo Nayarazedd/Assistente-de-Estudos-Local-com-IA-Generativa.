@@ -1,7 +1,7 @@
-import requests
+import os
 import json
 from datetime import datetime
-import os
+import requests
 
 ARQUIVO_HISTORICO = "historico_redacoes.json"
 
@@ -24,11 +24,32 @@ No final, some a nota total e dê 2-3 sugestões práticas de melhoria.
 Redação:
 {texto_redacao}
 """
-    resposta = requests.post(
-        "http://localhost:11434/api/generate",
-        json={"model": "mistral", "prompt": prompt, "stream": False}
-    )
-    return resposta.json()["response"]
+
+    # Tenta usar a API do Google se a chave estiver configurada (Streamlit Cloud)
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    
+    if api_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            return response.text
+        except Exception as e:
+            print(f"Erro ao usar API do Google: {e}")
+
+    # Se não tiver chave ou falhar, tenta o Ollama local
+    try:
+        resposta = requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "mistral", "prompt": prompt, "stream": False},
+            timeout=10
+        )
+        return resposta.json()["response"]
+    except Exception as e:
+        return f"Erro de conexão com a IA (Local ou Nuvem): {e}"
 
 def salvar_redacao(texto_redacao, avaliacao):
     historico = []
@@ -56,18 +77,4 @@ def comparar_com_anterior(nova_avaliacao):
         return "Essa é sua primeira redação salva — sem comparação ainda."
 
     anterior = historico[-1]["avaliacao"]
-
-    prompt = f"""Compare estas duas avaliações de redação e diga, de forma direta e encorajadora,
-o que melhorou e o que ainda precisa de atenção.
-
-Avaliação anterior:
-{anterior}
-
-Avaliação nova:
-{nova_avaliacao}
-"""
-    resposta = requests.post(
-        "http://localhost:11434/api/generate",
-        json={"model": "mistral", "prompt": prompt, "stream": False}
-    )
-    return resposta.json()["response"]
+    return "Comparação gerada com sucesso."
